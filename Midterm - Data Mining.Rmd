@@ -1,0 +1,196 @@
+---
+title: "Data Mining"
+author: "Rocio Meza"
+date: "March 7, 2017"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Part 1. 
+
+###I. 
+Set up the log-likelihood function. Note that this function will not simplify very much.
+
+```{r}
+log.like = function(vari) {
+#Defining vari
+  mu1    <-vari[1]
+  sigma1 <-vari[2]
+  mu2    <-vari[3]
+  sigma2 <-vari[4]
+  delta  <-vari[5]  
+#This is the function btw. 
+  return(sum(log(delta * (1 / (sqrt(2 *pi*sigma1^2))) * exp(-(1/(2*sigma1^2))* (NormalMix - mu1)^2) 
+  + (1-delta) * (1/ (sqrt (2 *pi*sigma2^2))) *exp (- (1/(2*sigma2^2))* (NormalMix - mu2)^2))))
+}
+```
+
+###II.
+```{r}
+NormalMix <- read.csv("NormalMix.csv")[,-1]
+hist(NormalMix,breaks=20,xlab="x",probability = T)
+```
+
+###III.
+```{r}
+neg.log.like = function(vari) {
+#Defining vari
+  mu1    <-vari[1]
+  sigma1 <-vari[2]
+  mu2    <-vari[3]
+  sigma2 <-vari[4]
+  delta  <-vari[5]  
+#Function
+  return(-sum(log((delta*dnorm(NormalMix, mu1, sigma1))+((1-delta)*dnorm(NormalMix, mu2, sigma2)))))
+  }
+#Returning negative loglikelihood 
+neg.log.like(c(4, 2, 8, 2 , .5))
+```
+
+###IV. 
+```{r}
+nlm(neg.log.like, c(4, 2, 8, 2, .5))$estimate
+```
+You get 3.9914714 1.0034196 7.9981117 1.0018488 0.3062931 for mu1, sigma1, mu2, sigma2, and delta. 
+
+###V.
+Approximately what percentage of males and females contribute to the distribution of
+X based on our data set?
+
+As stated in the description of delta: "The mixture parameter (delta) governs how much mass gets placed on the first distribution f1(x; mu1, sigma1) and the complement of delta governms how much mass gets placed on the other distrubution f2(x; mu2, sigma2).""
+
+This would mean that if we use the MLE of delta would tells us the percentage of males and females that contribute to the distribution of X. Therefore:
+
+Males: 0.3062931 or approx. 30% 
+Females: 1-0.3062931 or approx. 70% 
+
+#Part 2. 
+
+###I. 
+```{r}
+kNNData <- read.csv("kNNData.csv")[,c("X1","X2","Class")]
+set.seed(2)
+test.index <- sample(1:nrow(kNNData),100,replace=F)
+kNNData.test <- kNNData[test.index, ]
+kNNData.train <- kNNData[-test.index, ]
+```
+
+###II.
+Run the following code to gain a visual representation of how the response behaves for different values of the features X1 and X2.
+```{r}
+library(ggplot2)
+ggplot(data=kNNData.train)+
+  geom_point(mapping=aes(x=X1,y=X2,col=Class))+
+  labs(title="kNN Classification")
+```
+  
+###III. 
+Modify the KNN.decision() function from class so that it can be applied to the the kNNData data frame. Using K = 5, test your function at the query points(X1test = 0; X2test = 10) and (X1test = 0; X2test = 5).
+```{r}
+KNN.decision <- function(x1test, x2test, K, x1, x2, Dir){ 
+    n <- length(x1) 
+    stopifnot(length(x2) == n, length(x1test) == 1, length(x2test) == 1, K <= n)
+# Define distances
+    D <- sqrt((x1-x1test)^2 + (x2-x2test)^2)
+    neighbors <- order(D)[1:K] 
+    neighb.dir <- Dir[neighbors] 
+    choice <- names(which.max(table(neighb.dir))) 
+    return(choice) 
+}
+KNN.decision(0,10,5, kNNData$X1, kNNData$X2, kNNData$Class)
+KNN.decision(0, 5, 5, kNNData$X1, kNNData$X2, kNNData$Class)
+```
+
+###IV.
+Compute the prediction error for K = 5.
+```{r}
+n.test <- nrow(kNNData.test) 
+kNNData.test <- kNNData[test.index, ]
+kNNData.train <- kNNData[-test.index, ]
+predictions <- rep(NA, n.test)
+for (i in 1:n.test){ 
+  predictions[i] <- KNN.decision(kNNData.test$X1[i],kNNData.test$X2[i], 5,
+                                 kNNData.train$X1, kNNData.train$X2, 
+                                 kNNData.train$Class) 
+} 
+test.error <- sum(predictions != kNNData.test$Class)/n.test 
+test.error
+```
+
+###V. 
+Compute the prediction error for K = 1; 2; 3; : : : ; 200. Create a plot of the prediction error verses K. Note that you could also plot the prediction error verses 1=K so that the plot is consistent with the text but this is not required.
+
+```{r}
+n.test <- nrow(kNNData.test) 
+predictions <- rep(NA, n.test)
+pred.error<- rep(NA, 200)
+for (k in 1:200){
+  for (i in 1:n.test){ 
+    predictions[i] <- KNN.decision(kNNData.test$X1[i],kNNData.test$X2[i], k,
+                                   kNNData.train$X1, kNNData.train$X2, kNNData.train$Class) 
+  } 
+  test.error <- sum(predictions != kNNData.test$Class)/n.test 
+  pred.error[k]<-test.error
+}
+plot(1:200, pred.error, xlab="K", ylab="Prediction Error", main="K v. Prediction Error")
+```
+
+###VI.
+Based on the plot from Part 2v, what range of values would you choose for the tuning parameter K? Why did you pick this range?
+I would pick ranges around 14-27 since they come up with a prediction Error of less than 0.20
+```{r}
+summary(pred.error)
+which(pred.error < 0.20, arr.ind = T)
+```
+
+#Part 3. 
+
+###I. 
+How many principal components do we require to explain 95% of the variance captured by this data set? To receive full credit, validate your claim with the appropriate plot.
+
+```{r}
+Daily1995 = read.csv('Daily1995.csv')
+names(Daily1995)
+# Center and scale data
+Weather <- scale(Daily1995)
+# Run the PCA
+pca <- prcomp(Weather)
+# Extract standard deviations
+pca$sdev
+#Look at loadings
+pca$rotation
+#Could be helpful to look at
+#summary(pca)
+
+# Cumulative explained variance 
+CPVE <- cumsum((pca$sdev)^2)/sum((pca$sdev)^2)
+CPVE
+#you only need the first 3. 
+
+#plot cumulative variance 
+plot(1:9,CPVE,type="l",col="blue",ylim=c(0,1),xlab="Principal Component",ylab="Cumulative PVE")
+points(1:9,CPVE,col="blue")
+```
+
+###II. 
+Construct the yearly weather for Flagstaff using the minimum number of PCs that explain 95% of the data's variation. Plot this constructed case with the actual data for Flagstagstaff. Make sure to label your plots appropriately.
+```{r}
+Weather_unscaled <- Daily1995
+new_pca <- prcomp(Weather_unscaled, center = FALSE)
+
+PC.123 <- new_pca$x[,c("PC1","PC2","PC3")]
+load.123 <- new_pca$rotation[,c("PC1","PC2","PC3")]
+
+data1<-(PC.123)%*%t(load.123)
+head(data1)
+
+plot(1:365,data1[,9], col=2, xlab="Day", ylab="Temp", main="Flagstaff")
+```
+
+
+
+
+
